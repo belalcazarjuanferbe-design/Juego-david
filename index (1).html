@@ -21,7 +21,7 @@ h1{font-size:22px;margin:0 0 4px;letter-spacing:.5px}
 .c.r{color:#c0182c}.c.x{opacity:.8;outline:2px solid var(--bad)}
 .c small{font-size:9px;font-weight:400;color:#555;text-align:center}
 .pk{width:100%;padding:6px 0;font-size:13px;background:#fff;color:#111;border:1px solid #888;border-radius:5px;cursor:pointer}.pk.r{color:#c0182c}.pk:disabled{opacity:.35;cursor:default}
-.grid{display:grid;grid-template-columns:repeat(13,1fr);gap:3px}
+.grid{display:grid;grid-template-columns:repeat(10,1fr);gap:3px}
 button{font:inherit}.b{background:var(--ac);color:#fff;border:0;border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:600}.b.g{background:var(--card);color:var(--fg);border:1px solid var(--bd)}.b:disabled{opacity:.4}
 .q{display:flex;align-items:center;gap:10px;margin:6px 0}.q button{background:var(--card);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:6px 10px;cursor:pointer}
 .q button.s{background:var(--ac);color:#fff;border-color:var(--ac)}
@@ -140,11 +140,11 @@ const AUTH_HASH=951713043488567;
 const cyrb53=(s,seed=0)=>{let h1=0xdeadbeef^seed,h2=0x41c6ce57^seed;for(let i=0,ch;i<s.length;i++){ch=s.charCodeAt(i);h1=Math.imul(h1^ch,2654435761);h2=Math.imul(h2^ch,1597334677)}h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);return 4294967296*(2097151&h2)+(h1>>>0)};
 const dd=s=>atob(s).split("").reverse().join("");
 
-const SU=["♠","♥","♦","♣"],VL=["A","2","3","4","5","6","7","8","9","10","J","Q","K"],$=i=>document.getElementById(i);
+const SU=["♠","♥","♦","♣"],VL=["A","2","3","4","5","6","7","8","9","10"],MAXV=VL.length,$=i=>document.getElementById(i);
 class Card{constructor(v,s){this.v=v;this.s=s}get red(){return this.s===1||this.s===2}toString(){return VL[this.v-1]+SU[this.s]}}
 const chip=(c,x,sub)=>`<span class="c ${c.red?"r":""} ${x?"x":""}">${c}${sub?`<small>${sub}</small>`:""}</span>`;
 const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
-const fullDeck=()=>[...Array(52).keys()].map(i=>new Card(i%13+1,Math.floor(i/13)));
+const fullDeck=()=>[...Array(MAXV*4).keys()].map(i=>new Card(i%MAXV+1,Math.floor(i/MAXV)));
 
 // ===== OBSERVER: bus de eventos + observadores =====
 class EventBus{constructor(){this.h={}}on(e,f){(this.h[e]??=[]).push(f)}emit(e,d){(this.h[e]||[]).forEach(f=>f(d))}}
@@ -221,7 +221,7 @@ class Game{
  start(retry=false){const L=this.F[this.lvl].create();this.rule=L.rule;this.plays=L.plays;this.line=[this.rand()];this.rej=[];this.exam=null;
   this.setState(new ExploreState());this.bus.emit("round",{n:this.lvl+1,total:this.rounds,final:this.lvl===this.rounds-1,retry,lives:this.lives})}
  nextLevel(){if(this.lvl>=this.rounds-1)this.setState(new EndState(true));else{this.lvl++;this.start()}}
- rand(){return new Card(1+Math.floor(Math.random()*13),Math.floor(Math.random()*4))}
+ rand(){return new Card(1+Math.floor(Math.random()*MAXV),Math.floor(Math.random()*4))}
  setState(s){this.state=s;this.bus.emit("update")}
  fail(m){this.lives--;this.bus.emit("log",{k:"life",m:"💔 "+m+" Pierdes una vida."});if(this.lives<=0)this.setState(new EndState(false));else this.start(true)}
  play(c){this.state.play(this,c)}declare(){this.state.declare(this)}answer(i,v){this.state.answer(this,i,v)}submit(){this.state.submit(this)}cancel(){this.state.cancel(this)}
@@ -237,7 +237,7 @@ function render(){const g=G,st=g.state,ex=st instanceof ExamState,end=st instanc
  $("ban").innerHTML=end?`<span>${st.name}</span>`:`<span>RONDA ${g.lvl+1} / ${g.rounds}${fin?" · ⚠ ¡RONDA FINAL!":" · la ronda "+g.rounds+" será la FINAL"}</span><span>${"❤️".repeat(g.lives)} · Jugadas: ${g.plays}</span>`;
  $("line").innerHTML=g.line.map(c=>chip(c)).join("");
  $("rej").innerHTML=g.rej.length?g.rej.map(x=>chip(x.c,1,x.ctx.length?"tras "+x.ctx.join(" "):"")).join(""):"<span style=opacity:.6>Aún ninguna</span>";
- let h="";for(let s=0;s<4;s++){h+='<div class="grid" style="margin-bottom:3px">';for(let v=1;v<=13;v++)h+=`<button class="pk ${s===1||s===2?"r":""}" ${exp?"":"disabled"} onclick="G.play(new Card(${v},${s}))">${VL[v-1]}${SU[s]}</button>`;h+="</div>"}
+ let h="";for(let s=0;s<4;s++){h+='<div class="grid" style="margin-bottom:3px">';for(let v=1;v<=MAXV;v++)h+=`<button class="pk ${s===1||s===2?"r":""}" ${exp?"":"disabled"} onclick="G.play(new Card(${v},${s}))">${VL[v-1]}${SU[s]}</button>`;h+="</div>"}
  $("pick").innerHTML=h;$("play").style.display=end||ex?"none":"";$("decl").onclick=()=>G.declare();
  $("exam").style.display=ex?"":"none";
  if(ex){const l=g.line.slice(-3).map(c=>chip(c)).join("");$("exam").innerHTML=`<h2>Examen: ¿se aceptaría cada carta si fuera la siguiente?</h2><div class="row" style="margin-bottom:8px">${l}</div>`+g.exam.map((q,i)=>`<div class="q">${chip(q.c)}<button class="${q.ans===true?"s":""}" onclick="G.answer(${i},true)">✔ Aceptada</button><button class="${q.ans===false?"s":""}" onclick="G.answer(${i},false)">✘ Rechazada</button></div>`).join("")+`<div class="row" style="margin-top:8px"><button class="b" ${g.exam.some(q=>q.ans===null)?"disabled":""} onclick="G.submit()">Entregar examen</button><button class="b g" onclick="G.cancel()">Volver a explorar</button></div><p style="opacity:.7;font-size:12px">Necesitas acertar las ${g.exam.length}. Un fallo cuesta una vida y reinicia la ronda con una mesa nueva.</p>`}
