@@ -390,7 +390,7 @@ class FirebaseTransport{
  resync(){fetch(ROOM+".json").then(r=>r.ok?r.json().then(d=>{if(!this.pend&&this.full){this.c=d||{};this.fire()}}):this.fail(r.status)).catch(()=>{})}
  session(){return this.c.session||null}players(){return this.c.p||{}}
  setSession(v){this.c.session=v;this.fire();return this.send("PUT","/session",v)}
- reset(v){this.c=v?{session:v}:{};this.fire();return this.send(v?"PUT":"DELETE","",v||undefined)}
+ reset(v){this.c=v?{session:v}:{};this.fire();return this.send(v?"PUT":"DELETE","",v?{session:v}:undefined)}
  clear(){return this.reset(null)}
  setPlayer(id,d){return this.send("PUT","/p/"+id,d)}delPlayer(id){return this.send("DELETE","/p/"+id)}}
 const TR=new FirebaseTransport(),ALIVE=30000,esc=t=>String(t).replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");
