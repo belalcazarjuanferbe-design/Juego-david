@@ -375,15 +375,19 @@ const timer=new GameTimer();
 const FB="https://la-regla-secreta-default-rtdb.firebaseio.com",ROOM=FB+"/lrs";
 const setPath=(o,p,d)=>{const k=p.split("/").filter(Boolean);if(!k.length)return d;let t=o=o||{};k.forEach((x,i)=>{if(i===k.length-1){if(d===null||d===undefined)delete t[x];else t[x]=d}else t=t[x]=t[x]||{}});return o};
 class FirebaseTransport{
- constructor(){this.h=[];this.c={};this.ready=false;this.es=null;this.full=false;setInterval(()=>this.fire(),2000)}
+ constructor(){this.h=[];this.c={};this.ready=false;this.es=null;this.full=false;this.pend=0;setInterval(()=>this.fire(),2000)}
  fire(){this.h.forEach(f=>f())}onChange(f){this.h.push(f)}
  watch(full){if(this.es)this.es.close();this.es=null;this.c={};this.ready=false;this.full=full;if(full===null)return;
   const es=this.es=new EventSource(ROOM+(full?"":"/session")+".json");
-  for(const t of["put","patch"])es.addEventListener(t,e=>{const m=JSON.parse(e.data),base=full?"":"/session",p=(m.path||"/").replace(/\/$/,"");
+  es.addEventListener("cancel",()=>this.fail(401));
+  for(const t of["put","patch"])es.addEventListener(t,e=>{if(this.pend)return;const m=JSON.parse(e.data),base=full?"":"/session",p=(m.path||"/").replace(/\/$/,"");
    if(t==="put")this.c=setPath(this.c,base+(p||"/"),m.data)||{};else for(const k in m.data)this.c=setPath(this.c,base+p+"/"+k,m.data[k])||{};
    this.ready=true;this.fire()});
   es.onerror=()=>{if(this.onerr&&es.readyState===2)this.onerr()}}
- send(m,p,body){return fetch(ROOM+p+".json",{method:m,body:body===undefined?undefined:JSON.stringify(body),keepalive:true}).catch(()=>this.onerr&&this.onerr())}
+ send(m,p,body){this.pend++;return fetch(ROOM+p+".json",{method:m,body:body===undefined?undefined:JSON.stringify(body),keepalive:true})
+  .then(r=>{if(!r.ok)this.fail(r.status);return r}).catch(()=>this.fail(0)).finally(()=>{this.pend--;if(!this.pend&&this.full)this.resync()})}
+ fail(st){this.onerr&&this.onerr(st===401||st===403?"Firebase rechazó la escritura ("+st+"). Revisa que las reglas estén publicadas en Realtime Database → Reglas.":st===404?"No se encontró la base de datos (404). Revisa la URL en la constante FB.":st?"Error del servidor ("+st+").":"Sin conexión con el servidor.")}
+ resync(){fetch(ROOM+".json").then(r=>r.ok?r.json().then(d=>{if(!this.pend&&this.full){this.c=d||{};this.fire()}}):this.fail(r.status)).catch(()=>{})}
  session(){return this.c.session||null}players(){return this.c.p||{}}
  setSession(v){this.c.session=v;this.fire();return this.send("PUT","/session",v)}
  reset(v){this.c=v?{session:v}:{};this.fire();return this.send(v?"PUT":"DELETE","",v||undefined)}
@@ -428,7 +432,7 @@ const App={mode:null,pid:null,name:"",epoch:null,hb:0,playing:false,
   const list=Object.values(ps).filter(p=>s&&p.epoch===s.epoch),on=list.filter(p=>now-p.t<ALIVE).length;
   $("acts").innerHTML=st==="none"?'<button class="b" onclick="App.open()">🚪 Abrir sala</button>':st==="lobby"?`<button class="b" onclick="App.start()">▶ Empezar partida (${on} conectado${on===1?"":"s"})</button><button class="b g" onclick="App.close()">Cerrar sala</button>`:'<button class="b g" onclick="App.close()">⏹ Terminar partida y cerrar sala</button><span style="opacity:.7">Partida en curso: la configuración está bloqueada.</span>';
   $("plist").innerHTML=!s?'<span style="opacity:.6">Abre la sala para que los jugadores puedan entrar.</span>':list.length?list.map(p=>`<div class="pl"><b>${esc(p.name)}</b><span>${now-p.t<ALIVE?"🟢":"⚪ desconectado"} · ${p.st} · Ronda ${p.lvl+1} · ${"❤️".repeat(Math.max(0,p.lives))||"—"}${s.status==="playing"&&!s.roster.includes(Object.keys(ps).find(k=>ps[k]===p))?" · fuera":""}</span></div>`).join(""):'<span style="opacity:.6">Nadie ha entrado todavía.</span>'},
- init(){TR.onerr=()=>{const t="Sin conexión con el servidor.";$("aerr").textContent=t;$("jerr").textContent=t};if(FB.includes("TU-PROYECTO"))this.msg("⚠ Falta configurar Firebase: pon tu URL en la constante FB (mira LEEME.md).");TR.onChange(()=>this.sync());bus.on("round",()=>this.beat());bus.on("end",()=>this.beat());addEventListener("pagehide",()=>{if(this.pid)TR.delPlayer(this.pid)});show("home")}};
+ init(){TR.onerr=m=>{const t=typeof m==="string"?m:"Sin conexión con el servidor.";$("aerr").textContent=t;$("jerr").textContent=t};if(FB.includes("TU-PROYECTO"))this.msg("⚠ Falta configurar Firebase: pon tu URL en la constante FB (mira LEEME.md).");TR.onChange(()=>this.sync());bus.on("round",()=>this.beat());bus.on("end",()=>this.beat());addEventListener("pagehide",()=>{if(this.pid)TR.delPlayer(this.pid)});show("home")}};
 const show=id=>document.querySelectorAll(".v").forEach(v=>v.hidden=v.id!==id);
 [new Logger(),new RoundSplash(),stats,timer,new HUD(render)].forEach(o=>o.init(bus));
 App.init();
