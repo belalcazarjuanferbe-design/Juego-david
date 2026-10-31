@@ -106,6 +106,7 @@ input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px color-mix(i
 .pl{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:7px 10px;margin:4px 0;border-radius:9px;background:color-mix(in srgb,var(--ac) 8%,transparent);font-size:13px}
 .tm{font-variant-numeric:tabular-nums;background:rgba(0,0,0,.28);padding:2px 9px;border-radius:99px}.tm.low{background:#fff;color:#b91c1c;animation:p .6s infinite alternate}
 @media (max-width:600px){.home{grid-template-columns:1fr}}
+.pl.me{outline:2px solid var(--ac);background:color-mix(in srgb,var(--ac) 18%,transparent)}
 </style></head><body><div class="wrap">
 <h1>🧩 La Regla Secreta</h1>
 <div id="home" class="v"><div class="sub">Elige cómo quieres entrar.</div><div id="hmsg" class="note" hidden></div>
@@ -139,6 +140,7 @@ input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px color-mix(i
 <div class="pan" id="play"><h2>Elige una carta para jugar</h2><div id="pick"></div>
 <div style="margin-top:10px" class="row"><button class="b" id="decl">🎓 Declarar la regla (examen)</button></div></div>
 <div class="pan" id="exam" style="display:none"></div>
+<div class="pan" id="rank" style="display:none"></div>
 <aside class="logf" id="logf" aria-label="Registro de la partida">
  <button class="lgh" id="lgHead" aria-expanded="false" aria-controls="log"><b>Registro</b><span class="pill" id="lgRound"></span><span class="lgl" id="lgLast"></span><span class="chev">▲</span></button>
  <div class="lgw"><div><div id="log" role="log" aria-live="polite"></div></div></div>
@@ -420,21 +422,30 @@ const App={mode:null,pid:null,name:"",epoch:null,hb:0,playing:false,
   this.pid=Math.random().toString(36).slice(2);this.name=n.slice(0,20);this.epoch=s.epoch;this.beat();
   this.hb=setInterval(()=>this.beat(),10000);$("jf").hidden=true;$("jw").hidden=false;this.sync()},
  beat(){if(!this.pid)return;const g=G.state,end=g instanceof EndState;
-  TR.setPlayer(this.pid,{name:this.name,epoch:this.epoch,t:Date.now(),lvl:G.lvl,lives:G.lives,st:!this.playing?"En sala":end?(g.win?"🏆 Terminó":"💀 Eliminado"):"Jugando"})},
- startGame(c){this.playing=true;show("game");G.cfg=c;G.reset();this.beat()},
+  TR.setPlayer(this.pid,{name:this.name,epoch:this.epoch,t:Date.now(),lvl:G.lvl,lives:Math.max(0,G.lives),st:!this.playing?"En sala":end?(g.win?"🏆 Terminó":"💀 Eliminado"):"Jugando",end:end?1:0,win:end&&g.win?1:0,ms:end?this.ms:0})},
+ startGame(c){this.playing=true;this.closed=false;this.t0=Date.now();this.ms=0;show("game");$("rank").style.display="none";G.cfg=c;G.reset();this.beat()},
  sync(){const s=TR.session();
   if(this.mode==="admin")return this.adminView(s);
-  if(this.mode!=="player"||!this.pid)return;
-  if(!s||s.epoch!==this.epoch)return this.home("El administrador cerró la sala.");
+  if(this.mode!=="player"||!this.pid||!TR.ready)return;
+  const ended=this.playing&&G.state instanceof EndState;
+  if(!s||s.epoch!==this.epoch){if(!ended)return this.home("El administrador cerró la sala.");if(!this.closed){this.closed=true;$("rank").insertAdjacentHTML("afterbegin",'<p class="note">El administrador cerró la sala.</p>')}return}
+  if(ended)return this.rankView(s);
   if(s.status==="playing"&&!this.playing){if(s.roster.includes(this.pid))this.startGame(s.cfg);else this.home("La partida empezó sin ti. Solo juegan quienes estaban dentro de la sala.")}
   else if(!this.playing){$("jtxt").innerHTML=`✅ Estás dentro, <b>${esc(this.name)}</b>.<br>Esperando a que el administrador empiece… ⏳<br><small>Vidas: ${s.cfg.lives} · Tiempo por ronda: ${s.cfg.seconds?fmt(s.cfg.seconds):"sin límite"}. No recargues la página: saldrías de la sala.</small>`}},
+ ranked(ps,s){return Object.entries(ps).filter(([id,p])=>p&&p.epoch===s.epoch&&s.roster&&s.roster.includes(id)).sort(([,a],[,b])=>(b.win||0)-(a.win||0)||b.lvl-a.lvl||b.lives-a.lives||(a.win&&b.win?a.ms-b.ms:0)||a.name.localeCompare(b.name))},
+ rowHTML(id,p,i){const stale=!p.end&&Date.now()-p.t>=ALIVE,medal=["🥇","🥈","🥉"][i]||"#"+(i+1),me=id===this.pid,
+  d=p.win?`🏆 Completó todo · ${fmt(Math.round(p.ms/1000))} · ${"❤️".repeat(p.lives)}`:p.end?`💀 Eliminado en la ronda ${p.lvl+1}`:`${stale?"⚪ desconectado":"🎮 Jugando"} · Ronda ${p.lvl+1} · ${"❤️".repeat(p.lives)||"—"}`;
+  return `<div class="pl${me?" me":""}"><span><b>${medal}</b> ${esc(p.name)}${me?" (tú)":""}</span><span>${d}</span></div>`},
+ rankView(s){const r=this.ranked(TR.players(),s),me=r.findIndex(([id])=>id===this.pid),el=$("rank");
+  if(this.closed)return;el.style.display="";
+  el.innerHTML=`<h2>🏆 Clasificación en vivo</h2><p style="opacity:.75;font-size:13px">${me>=0?`Vas en el puesto <b>${me+1}</b> de ${r.length}. `:""}Se actualiza mientras los demás siguen jugando.</p>`+r.map(([id,p],i)=>this.rowHTML(id,p,i)).join("")},
  adminView(s){const ps=TR.players(),now=Date.now(),st=s?s.status:"none";
   for(const id of["cl","cs"])$(id).disabled=st==="playing";
   if(s&&document.activeElement!==$("cl")&&document.activeElement!==$("cs")){$("cl").value=s.cfg.lives;$("cs").value=s.cfg.seconds}
   const list=Object.values(ps).filter(p=>s&&p.epoch===s.epoch),on=list.filter(p=>now-p.t<ALIVE).length;
   $("acts").innerHTML=st==="none"?'<button class="b" onclick="App.open()">🚪 Abrir sala</button>':st==="lobby"?`<button class="b" onclick="App.start()">▶ Empezar partida (${on} conectado${on===1?"":"s"})</button><button class="b g" onclick="App.close()">Cerrar sala</button>`:'<button class="b g" onclick="App.close()">⏹ Terminar partida y cerrar sala</button><span style="opacity:.7">Partida en curso: la configuración está bloqueada.</span>';
-  $("plist").innerHTML=!s?'<span style="opacity:.6">Abre la sala para que los jugadores puedan entrar.</span>':list.length?list.map(p=>`<div class="pl"><b>${esc(p.name)}</b><span>${now-p.t<ALIVE?"🟢":"⚪ desconectado"} · ${p.st} · Ronda ${p.lvl+1} · ${"❤️".repeat(Math.max(0,p.lives))||"—"}${s.status==="playing"&&!s.roster.includes(Object.keys(ps).find(k=>ps[k]===p))?" · fuera":""}</span></div>`).join(""):'<span style="opacity:.6">Nadie ha entrado todavía.</span>'},
- init(){TR.onerr=m=>{const t=typeof m==="string"?m:"Sin conexión con el servidor.";$("aerr").textContent=t;$("jerr").textContent=t};if(FB.includes("TU-PROYECTO"))this.msg("⚠ Falta configurar Firebase: pon tu URL en la constante FB (mira LEEME.md).");TR.onChange(()=>this.sync());bus.on("round",()=>this.beat());bus.on("end",()=>this.beat());addEventListener("pagehide",()=>{if(this.pid)TR.delPlayer(this.pid)});show("home")}};
+  $("plist").innerHTML=!s?'<span style="opacity:.6">Abre la sala para que los jugadores puedan entrar.</span>':s.status==="playing"?(this.ranked(ps,s).map(([id,p],i)=>this.rowHTML(id,p,i)).join("")||'<span style="opacity:.6">Sin datos todavía…</span>'):list.length?list.map(p=>`<div class="pl"><b>${esc(p.name)}</b><span>${now-p.t<ALIVE?"🟢 conectado":"⚪ desconectado"}</span></div>`).join(""):'<span style="opacity:.6">Nadie ha entrado todavía.</span>'},
+ init(){TR.onerr=m=>{const t=typeof m==="string"?m:"Sin conexión con el servidor.";$("aerr").textContent=t;$("jerr").textContent=t};if(FB.includes("TU-PROYECTO"))this.msg("⚠ Falta configurar Firebase: pon tu URL en la constante FB (mira LEEME.md).");TR.onChange(()=>this.sync());bus.on("round",()=>this.beat());bus.on("end",()=>{if(this.mode!=="player"||!this.pid)return;this.ms=Date.now()-this.t0;this.beat();TR.watch(true)});addEventListener("pagehide",()=>{if(this.pid)TR.delPlayer(this.pid)});show("home")}};
 const show=id=>document.querySelectorAll(".v").forEach(v=>v.hidden=v.id!==id);
 [new Logger(),new RoundSplash(),stats,timer,new HUD(render)].forEach(o=>o.init(bus));
 App.init();
