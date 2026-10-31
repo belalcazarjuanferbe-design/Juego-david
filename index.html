@@ -371,38 +371,48 @@ class GameTimer extends Observer{
  tick(){const l=this.left(),e=$("tm");if(e){e.textContent=this.text();e.className="tm"+(l<=10?" low":"")}if(l<=0){this.stop();this.b.emit("timeout")}}}
 const timer=new GameTimer();
 
-// ===== SALA: transporte intercambiable (hoy: pestañas del mismo navegador) =====
-const LS={get(k){try{return JSON.parse(localStorage.getItem(k))}catch{return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}},del(k){try{localStorage.removeItem(k)}catch{}}};
-class LocalTransport{
- constructor(){this.h=[];addEventListener("storage",e=>{if(e.key&&e.key.startsWith("lrs_"))this.fire()});setInterval(()=>this.fire(),2000)}
+// ===== SALA ONLINE: transporte Firebase Realtime Database (REST + EventSource, sin librerías) =====
+const FB="https://la-regla-secreta-default-rtdb.firebaseio.com",ROOM=FB+"/lrs";
+const setPath=(o,p,d)=>{const k=p.split("/").filter(Boolean);if(!k.length)return d;let t=o=o||{};k.forEach((x,i)=>{if(i===k.length-1){if(d===null||d===undefined)delete t[x];else t[x]=d}else t=t[x]=t[x]||{}});return o};
+class FirebaseTransport{
+ constructor(){this.h=[];this.c={};this.ready=false;this.es=null;this.full=false;setInterval(()=>this.fire(),2000)}
  fire(){this.h.forEach(f=>f())}onChange(f){this.h.push(f)}
- session(){return LS.get("lrs_session")}setSession(v){LS.set("lrs_session",v);this.fire()}
- setPlayer(id,d){LS.set("lrs_p_"+id,d)}delPlayer(id){LS.del("lrs_p_"+id)}
- players(){const o={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith("lrs_p_"))o[k.slice(6)]=LS.get(k)}return o}
- clear(){LS.del("lrs_session");Object.keys(this.players()).forEach(id=>this.delPlayer(id));this.fire()}}
-const TR=new LocalTransport(),ALIVE=8000,esc=t=>String(t).replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");
+ watch(full){if(this.es)this.es.close();this.es=null;this.c={};this.ready=false;this.full=full;if(full===null)return;
+  const es=this.es=new EventSource(ROOM+(full?"":"/session")+".json");
+  for(const t of["put","patch"])es.addEventListener(t,e=>{const m=JSON.parse(e.data),base=full?"":"/session",p=(m.path||"/").replace(/\/$/,"");
+   if(t==="put")this.c=setPath(this.c,base+(p||"/"),m.data)||{};else for(const k in m.data)this.c=setPath(this.c,base+p+"/"+k,m.data[k])||{};
+   this.ready=true;this.fire()});
+  es.onerror=()=>{if(this.onerr&&es.readyState===2)this.onerr()}}
+ send(m,p,body){return fetch(ROOM+p+".json",{method:m,body:body===undefined?undefined:JSON.stringify(body),keepalive:true}).catch(()=>this.onerr&&this.onerr())}
+ session(){return this.c.session||null}players(){return this.c.p||{}}
+ setSession(v){this.c.session=v;this.fire();return this.send("PUT","/session",v)}
+ reset(v){this.c=v?{session:v}:{};this.fire();return this.send(v?"PUT":"DELETE","",v||undefined)}
+ clear(){return this.reset(null)}
+ setPlayer(id,d){return this.send("PUT","/p/"+id,d)}delPlayer(id){return this.send("DELETE","/p/"+id)}}
+const TR=new FirebaseTransport(),ALIVE=30000,esc=t=>String(t).replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");
 const App={mode:null,pid:null,name:"",epoch:null,hb:0,playing:false,
  msg(t){const m=$("hmsg");m.textContent=t||"";m.hidden=!t},
- home(m){this.leave();this.mode=null;show("home");this.msg(typeof m==="string"?m:"")},
+ home(m){this.leave();this.mode=null;TR.watch(null);show("home");this.msg(typeof m==="string"?m:"")},
  leave(){clearInterval(this.hb);if(this.pid)TR.delPlayer(this.pid);this.pid=null;this.playing=false;timer.stop()},
  gate(){this.mode=null;show("gate");$("key").value="";$("gerr").textContent="";$("key").focus()},
  login(){if(cyrb53($("key").value)!==AUTH_HASH){$("gerr").textContent="Clave incorrecta.";return}
-  this.mode="admin";show("adm");$("all").innerHTML=G.F.map((f,i)=>`<li>Ronda ${i+1}: ${f.create().rule.desc}</li>`).join("");showUml();this.sync()},
+  this.mode="admin";TR.watch(true);show("adm");$("all").innerHTML=G.F.map((f,i)=>`<li>Ronda ${i+1}: ${f.create().rule.desc}</li>`).join("");showUml();this.sync()},
  cfg(){const c=(id,lo,hi,d)=>{const v=parseInt($(id).value,10);return Math.min(hi,Math.max(lo,isNaN(v)?d:v))};return{lives:c("cl",1,9,3),seconds:c("cs",0,3600,300)}},
  cfgChange(){const c=this.cfg();$("cl").value=c.lives;$("cs").value=c.seconds;const s=TR.session();if(s&&s.status==="lobby"){s.cfg=c;TR.setSession(s)}},
- open(){TR.clear();TR.setSession({epoch:Date.now(),status:"lobby",cfg:this.cfg(),roster:[]})},
+ open(){TR.reset({epoch:Date.now(),status:"lobby",cfg:this.cfg(),roster:[]})},
  start(){const s=TR.session(),now=Date.now(),ps=TR.players();
   s.roster=Object.keys(ps).filter(id=>ps[id].epoch===s.epoch&&now-ps[id].t<ALIVE);
   if(!s.roster.length){$("aerr").textContent="No hay jugadores conectados en la sala.";return}
   $("aerr").textContent="";s.cfg=this.cfg();s.status="playing";TR.setSession(s)},
  close(){TR.clear()},
- joinView(){this.mode="player";show("join");$("jf").hidden=false;$("jw").hidden=true;$("jerr").textContent="";$("pname").focus()},
+ joinView(){this.mode="player";TR.watch(false);show("join");$("jf").hidden=false;$("jw").hidden=true;$("jerr").textContent="";$("pname").focus()},
  join(){const s=TR.session(),n=$("pname").value.trim();
   if(!n){$("jerr").textContent="Escribe tu nombre.";return}
+  if(!TR.ready){$("jerr").textContent="Conectando con la sala… intenta de nuevo en un segundo.";return}
   if(!s){$("jerr").textContent="Aún no hay una sala abierta. Pide al administrador que la abra.";return}
   if(s.status!=="lobby"){$("jerr").textContent="La partida ya empezó. Solo juegan quienes estaban dentro; espera a la siguiente.";return}
   this.pid=Math.random().toString(36).slice(2);this.name=n.slice(0,20);this.epoch=s.epoch;this.beat();
-  this.hb=setInterval(()=>this.beat(),2000);$("jf").hidden=true;$("jw").hidden=false;this.sync()},
+  this.hb=setInterval(()=>this.beat(),10000);$("jf").hidden=true;$("jw").hidden=false;this.sync()},
  beat(){if(!this.pid)return;const g=G.state,end=g instanceof EndState;
   TR.setPlayer(this.pid,{name:this.name,epoch:this.epoch,t:Date.now(),lvl:G.lvl,lives:G.lives,st:!this.playing?"En sala":end?(g.win?"🏆 Terminó":"💀 Eliminado"):"Jugando"})},
  startGame(c){this.playing=true;show("game");G.cfg=c;G.reset();this.beat()},
@@ -411,14 +421,14 @@ const App={mode:null,pid:null,name:"",epoch:null,hb:0,playing:false,
   if(this.mode!=="player"||!this.pid)return;
   if(!s||s.epoch!==this.epoch)return this.home("El administrador cerró la sala.");
   if(s.status==="playing"&&!this.playing){if(s.roster.includes(this.pid))this.startGame(s.cfg);else this.home("La partida empezó sin ti. Solo juegan quienes estaban dentro de la sala.")}
-  else if(!this.playing){const n=Object.values(TR.players()).filter(p=>p.epoch===s.epoch).length;$("jtxt").innerHTML=`✅ Estás dentro, <b>${esc(this.name)}</b>. Jugadores en la sala: <b>${n}</b>.<br>Esperando a que el administrador empiece… ⏳<br><small>Vidas: ${s.cfg.lives} · Tiempo por ronda: ${s.cfg.seconds?fmt(s.cfg.seconds):"sin límite"}. No recargues la página: saldrías de la sala.</small>`}},
+  else if(!this.playing){$("jtxt").innerHTML=`✅ Estás dentro, <b>${esc(this.name)}</b>.<br>Esperando a que el administrador empiece… ⏳<br><small>Vidas: ${s.cfg.lives} · Tiempo por ronda: ${s.cfg.seconds?fmt(s.cfg.seconds):"sin límite"}. No recargues la página: saldrías de la sala.</small>`}},
  adminView(s){const ps=TR.players(),now=Date.now(),st=s?s.status:"none";
   for(const id of["cl","cs"])$(id).disabled=st==="playing";
   if(s&&document.activeElement!==$("cl")&&document.activeElement!==$("cs")){$("cl").value=s.cfg.lives;$("cs").value=s.cfg.seconds}
   const list=Object.values(ps).filter(p=>s&&p.epoch===s.epoch),on=list.filter(p=>now-p.t<ALIVE).length;
   $("acts").innerHTML=st==="none"?'<button class="b" onclick="App.open()">🚪 Abrir sala</button>':st==="lobby"?`<button class="b" onclick="App.start()">▶ Empezar partida (${on} conectado${on===1?"":"s"})</button><button class="b g" onclick="App.close()">Cerrar sala</button>`:'<button class="b g" onclick="App.close()">⏹ Terminar partida y cerrar sala</button><span style="opacity:.7">Partida en curso: la configuración está bloqueada.</span>';
   $("plist").innerHTML=!s?'<span style="opacity:.6">Abre la sala para que los jugadores puedan entrar.</span>':list.length?list.map(p=>`<div class="pl"><b>${esc(p.name)}</b><span>${now-p.t<ALIVE?"🟢":"⚪ desconectado"} · ${p.st} · Ronda ${p.lvl+1} · ${"❤️".repeat(Math.max(0,p.lives))||"—"}${s.status==="playing"&&!s.roster.includes(Object.keys(ps).find(k=>ps[k]===p))?" · fuera":""}</span></div>`).join(""):'<span style="opacity:.6">Nadie ha entrado todavía.</span>'},
- init(){TR.onChange(()=>this.sync());bus.on("round",()=>this.beat());bus.on("end",()=>this.beat());addEventListener("pagehide",()=>{if(this.pid)TR.delPlayer(this.pid)});show("home")}};
+ init(){TR.onerr=()=>{const t="Sin conexión con el servidor.";$("aerr").textContent=t;$("jerr").textContent=t};if(FB.includes("TU-PROYECTO"))this.msg("⚠ Falta configurar Firebase: pon tu URL en la constante FB (mira LEEME.md).");TR.onChange(()=>this.sync());bus.on("round",()=>this.beat());bus.on("end",()=>this.beat());addEventListener("pagehide",()=>{if(this.pid)TR.delPlayer(this.pid)});show("home")}};
 const show=id=>document.querySelectorAll(".v").forEach(v=>v.hidden=v.id!==id);
 [new Logger(),new RoundSplash(),stats,timer,new HUD(render)].forEach(o=>o.init(bus));
 App.init();
