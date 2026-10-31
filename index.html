@@ -117,7 +117,7 @@ input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px color-mix(i
 <div class="cfg"><label>Vidas iniciales<input id="cl" type="number" min="1" max="9" value="3" onchange="App.cfgChange()"></label><label>Tiempo por ronda (segundos · 0 = sin límite)<input id="cs" type="number" min="0" max="3600" step="15" value="300" onchange="App.cfgChange()"></label></div>
 <div class="row" id="acts" style="margin-top:10px"></div><p id="aerr" class="err"></p></div>
 <div class="pan"><h2>Jugadores en la sala</h2><div id="plist"></div></div>
-<div class="pan"><h2>Reglas de cada ronda</h2><ol id="all"></ol></div>
+<div class="pan"><h2>Reglas posibles de las rondas iniciales</h2><p style="opacity:.7;font-size:13px">Cada jugador recibe 2 de estas al azar y en orden aleatorio.</p><ul id="all"></ul><h2>Regla de la ronda final (igual para todos)</h2><p id="fin"></p></div>
 <details class="pan"><summary><b>Documentación (SOLID, UML y clave)</b></summary><p><b>Principios SOLID aplicados</b></p>
  <ul>
   <li><b>S</b>: cada clase hace una sola cosa (<code>Game</code> maneja el estado del juego; <code>HUD</code> pinta; <code>Logger</code> registra; <code>RoundSplash</code> anuncia la ronda; <code>Stats</code> cuenta; cada <code>Rule</code> evalúa una condición).</li>
@@ -190,6 +190,7 @@ class HUD extends Observer{constructor(r){super();this.render=r}init(b){b.on("up
 // ===== STRATEGY: reglas intercambiables (nombres neutros a propósito) =====
 class Rule{ok(c,l){return l.length?this.cmp(c,l[l.length-1]):true}cmp(){return true}get desc(){return""}}
 class Alfa extends Rule{cmp(c,p){return c.red!==p.red}get desc(){return dd("cm9pcmV0bmEgYXRyYWMgYWwgZWQgbGEgb3RuaXRzaWQgcm9sb2M=")}}
+class Beta extends Rule{cmp(c,p){return c.v%2!==p.v%2}get desc(){return dd("cm9pcmV0bmEgYXRyYWMgYWwgZWQgYWwgYSBhdHNldXBvIClyYXBtaS9yYXAoIGRhZGlyYXA=")}}
 class Gamma extends Rule{cmp(c,p){return Math.abs(c.v-p.v)<=4}get desc(){return dd("cm9pcmV0bmEgYXRyYWMgYWwgYSBvdGNlcHNlciBzb25lbSBvIDQgZWQgcm9sYXYgZWQgYWljbmVyZWZpZA==")}}
 class Delta extends Rule{cmp(c,p){return c.s===p.s}get desc(){return dd("cm9pcmV0bmEgYXRyYWMgYWwgZXVxIG9sYXAgb21zaW0=")}}
 class Epsilon extends Rule{cmp(c,p){return c.v>p.v}get desc(){return dd("cm9pcmV0bmEgYXRyYWMgYWwgZXVxIHJveWFtIHJvbGF2")}}
@@ -204,12 +205,14 @@ class AllOf extends Rule{constructor(...rs){super();this.rules=rs}ok(c,l){return
 // ===== FACTORY METHOD: una fábrica por ronda crea su Level =====
 class Level{constructor(rule,plays){this.rule=rule;this.plays=plays}}
 class LevelFactory{create(){throw new Error("abstracto")}}
-class Level1Factory extends LevelFactory{create(){return new Level(new Lag(new Delta()),25)}}
-class Level2Factory extends LevelFactory{create(){return new Level(new AllOf(new Lag(new Delta()),new Not(new Epsilon())),35)}}
-class Level3Factory extends LevelFactory{create(){return new Level(new AllOf(new Lag(new Alfa()),new Not(new Delta()),new Gamma()),40)}}
+class Level1Factory extends LevelFactory{create(){return new Level(new Beta(),25)}}
+class Level2Factory extends LevelFactory{create(){return new Level(new Alfa(),30)}}
+class Level3Factory extends LevelFactory{create(){return new Level(new Lag(new Delta()),25)}}
+class Level4Factory extends LevelFactory{create(){return new Level(new AllOf(new Lag(new Delta()),new Not(new Epsilon())),35)}}
+class FinalFactory extends LevelFactory{create(){return new Level(new AllOf(new Lag(new Alfa()),new Not(new Delta()),new Gamma()),40)}}
 
 // ===== STATE: cada fase decide qué acciones tienen efecto =====
-const MIN_ACCEPTED=5,EXAM_HALF=5;
+const MIN_ACCEPTED=5,EXAM_HALF=5,RANDOM_ROUNDS=2;
 class GameState{name="";play(){}declare(){}answer(){}submit(){}cancel(){}}
 class ExploreState extends GameState{name="Exploración";
  play(g,c){const ok=g.rule.ok(c,g.line);g.plays--;
@@ -227,9 +230,9 @@ class EndState extends GameState{constructor(w){super();this.win=w;this.name=w?"
 
 // ===== Contexto: depende de abstracciones inyectadas (DIP) =====
 class Game{
- constructor(factories,bus){this.F=factories;this.bus=bus;this.cfg={lives:3,seconds:0};bus.on("timeout",()=>{if(!(this.state instanceof EndState))this.fail("Se acabó el tiempo.")})}
+ constructor(pool,last,bus){this.pool=pool;this.last=last;this.F=[last];this.bus=bus;this.cfg={lives:3,seconds:0};bus.on("timeout",()=>{if(!(this.state instanceof EndState))this.fail("Se acabó el tiempo.")})}
  get rounds(){return this.F.length}
- reset(){this.lvl=0;this.lives=this.cfg.lives;this.bus.emit("newgame");this.start()}
+ reset(){this.F=[...shuffle(this.pool).slice(0,RANDOM_ROUNDS),this.last];this.lvl=0;this.lives=this.cfg.lives;this.bus.emit("newgame");this.start()}
  start(retry=false){const L=this.F[this.lvl].create();this.rule=L.rule;this.plays=L.plays;this.line=[this.rand()];this.rej=[];this.exam=null;
   this.setState(new ExploreState());this.bus.emit("round",{n:this.lvl+1,total:this.rounds,final:this.lvl===this.rounds-1,retry,lives:this.lives,seconds:this.cfg.seconds})}
  nextLevel(){if(this.lvl>=this.rounds-1)this.setState(new EndState(true));else{this.lvl++;this.start()}}
@@ -242,7 +245,7 @@ class Game{
   return shuffle([...a,...r]).map(c=>({c,truth:this.rule.ok(c,this.line),ans:null}))}}
 
 const bus=new EventBus(),stats=new Stats();
-const G=new Game([new Level1Factory(),new Level2Factory(),new Level3Factory()],bus);
+const G=new Game([new Level1Factory(),new Level2Factory(),new Level3Factory(),new Level4Factory()],new FinalFactory(),bus);
 
 function render(){const g=G,st=g.state,ex=st instanceof ExamState,end=st instanceof EndState,fin=g.lvl===g.rounds-1,exp=st instanceof ExploreState;
  $("ban").className="ban"+(fin&&!end?" fin":"");
@@ -270,6 +273,7 @@ class Rule{
  +desc string
 }
 class Alfa
+class Beta
 class Gamma
 class Delta
 class Epsilon
@@ -283,6 +287,7 @@ class AllOf{
  -rules Rule[]
 }
 Rule <|-- Alfa
+Rule <|-- Beta
 Rule <|-- Gamma
 Rule <|-- Delta
 Rule <|-- Epsilon
@@ -303,6 +308,8 @@ class LevelFactory{
 LevelFactory <|-- Level1Factory
 LevelFactory <|-- Level2Factory
 LevelFactory <|-- Level3Factory
+LevelFactory <|-- Level4Factory
+LevelFactory <|-- FinalFactory
 LevelFactory ..> Level : crea
 Level o-- Rule
 class GameState{
@@ -395,7 +402,7 @@ const App={mode:null,pid:null,name:"",epoch:null,hb:0,playing:false,
  leave(){clearInterval(this.hb);if(this.pid)TR.delPlayer(this.pid);this.pid=null;this.playing=false;timer.stop()},
  gate(){this.mode=null;show("gate");$("key").value="";$("gerr").textContent="";$("key").focus()},
  login(){if(cyrb53($("key").value)!==AUTH_HASH){$("gerr").textContent="Clave incorrecta.";return}
-  this.mode="admin";TR.watch(true);show("adm");$("all").innerHTML=G.F.map((f,i)=>`<li>Ronda ${i+1}: ${f.create().rule.desc}</li>`).join("");showUml();this.sync()},
+  this.mode="admin";TR.watch(true);show("adm");$("all").innerHTML=G.pool.map(f=>`<li>${f.create().rule.desc}</li>`).join("");$("fin").textContent=G.last.create().rule.desc;showUml();this.sync()},
  cfg(){const c=(id,lo,hi,d)=>{const v=parseInt($(id).value,10);return Math.min(hi,Math.max(lo,isNaN(v)?d:v))};return{lives:c("cl",1,9,3),seconds:c("cs",0,3600,300)}},
  cfgChange(){const c=this.cfg();$("cl").value=c.lives;$("cs").value=c.seconds;const s=TR.session();if(s&&s.status==="lobby"){s.cfg=c;TR.setSession(s)}},
  open(){TR.reset({epoch:Date.now(),status:"lobby",cfg:this.cfg(),roster:[]})},
