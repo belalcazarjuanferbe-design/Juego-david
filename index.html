@@ -132,7 +132,7 @@ input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px color-mix(i
  <p><b>Cambiar clave:</b> <input id="nk" placeholder="nueva clave"> → pega este número en <code>AUTH_HASH</code>: <code id="nh"></code></p>
 </details></div>
 <div id="game" class="v" hidden>
-<div class="sub">Una regla oculta decide qué cartas se aceptan según lo que ya hay en la mesa. Juega cartas, observa (¡también las rechazadas y lo que había antes!) y deduce. Cuando creas saberla, demuéstralo en el examen. Son 4 rondas y la última es brutal.</div>
+<div class="sub">Una regla oculta decide qué cartas se aceptan según lo que ya hay en la mesa. Juega cartas, observa (¡también las rechazadas y lo que había antes!) y deduce. Cuando creas saberla, demuéstralo en el examen. Son 3 rondas y la última es brutal.</div>
 <div class="ban" id="ban"></div>
 <div class="pan"><h2>Mesa · cartas aceptadas</h2><div class="felt"><div class="row" id="line"></div></div>
 <h2 style="margin-top:10px">Rechazadas</h2><div class="row" id="rej"></div></div>
@@ -190,7 +190,6 @@ class HUD extends Observer{constructor(r){super();this.render=r}init(b){b.on("up
 // ===== STRATEGY: reglas intercambiables (nombres neutros a propósito) =====
 class Rule{ok(c,l){return l.length?this.cmp(c,l[l.length-1]):true}cmp(){return true}get desc(){return""}}
 class Alfa extends Rule{cmp(c,p){return c.red!==p.red}get desc(){return dd("cm9pcmV0bmEgYXRyYWMgYWwgZWQgbGEgb3RuaXRzaWQgcm9sb2M=")}}
-class Beta extends Rule{cmp(c,p){return c.v%2!==p.v%2}get desc(){return dd("cm9pcmV0bmEgYXRyYWMgYWwgZWQgYWwgYSBhdHNldXBvIClyYXBtaS9yYXAoIGRhZGlyYXA=")}}
 class Gamma extends Rule{cmp(c,p){return Math.abs(c.v-p.v)<=4}get desc(){return dd("cm9pcmV0bmEgYXRyYWMgYWwgYSBvdGNlcHNlciBzb25lbSBvIDQgZWQgcm9sYXYgZWQgYWljbmVyZWZpZA==")}}
 class Delta extends Rule{cmp(c,p){return c.s===p.s}get desc(){return dd("cm9pcmV0bmEgYXRyYWMgYWwgZXVxIG9sYXAgb21zaW0=")}}
 class Epsilon extends Rule{cmp(c,p){return c.v>p.v}get desc(){return dd("cm9pcmV0bmEgYXRyYWMgYWwgZXVxIHJveWFtIHJvbGF2")}}
@@ -205,10 +204,9 @@ class AllOf extends Rule{constructor(...rs){super();this.rules=rs}ok(c,l){return
 // ===== FACTORY METHOD: una fábrica por ronda crea su Level =====
 class Level{constructor(rule,plays){this.rule=rule;this.plays=plays}}
 class LevelFactory{create(){throw new Error("abstracto")}}
-class Level1Factory extends LevelFactory{create(){return new Level(new Beta(),25)}}
-class Level2Factory extends LevelFactory{create(){return new Level(new Alfa(),30)}}
-class Level3Factory extends LevelFactory{create(){return new Level(new AllOf(new Lag(new Delta()),new Not(new Epsilon())),35)}}
-class Level4Factory extends LevelFactory{create(){return new Level(new AllOf(new Lag(new Alfa()),new Not(new Delta()),new Gamma()),40)}}
+class Level1Factory extends LevelFactory{create(){return new Level(new Lag(new Delta()),25)}}
+class Level2Factory extends LevelFactory{create(){return new Level(new AllOf(new Lag(new Delta()),new Not(new Epsilon())),35)}}
+class Level3Factory extends LevelFactory{create(){return new Level(new AllOf(new Lag(new Alfa()),new Not(new Delta()),new Gamma()),40)}}
 
 // ===== STATE: cada fase decide qué acciones tienen efecto =====
 const MIN_ACCEPTED=5,EXAM_HALF=5;
@@ -244,7 +242,7 @@ class Game{
   return shuffle([...a,...r]).map(c=>({c,truth:this.rule.ok(c,this.line),ans:null}))}}
 
 const bus=new EventBus(),stats=new Stats();
-const G=new Game([new Level1Factory(),new Level2Factory(),new Level3Factory(),new Level4Factory()],bus);
+const G=new Game([new Level1Factory(),new Level2Factory(),new Level3Factory()],bus);
 
 function render(){const g=G,st=g.state,ex=st instanceof ExamState,end=st instanceof EndState,fin=g.lvl===g.rounds-1,exp=st instanceof ExploreState;
  $("ban").className="ban"+(fin&&!end?" fin":"");
@@ -272,7 +270,6 @@ class Rule{
  +desc string
 }
 class Alfa
-class Beta
 class Gamma
 class Delta
 class Epsilon
@@ -286,7 +283,6 @@ class AllOf{
  -rules Rule[]
 }
 Rule <|-- Alfa
-Rule <|-- Beta
 Rule <|-- Gamma
 Rule <|-- Delta
 Rule <|-- Epsilon
@@ -307,7 +303,6 @@ class LevelFactory{
 LevelFactory <|-- Level1Factory
 LevelFactory <|-- Level2Factory
 LevelFactory <|-- Level3Factory
-LevelFactory <|-- Level4Factory
 LevelFactory ..> Level : crea
 Level o-- Rule
 class GameState{
