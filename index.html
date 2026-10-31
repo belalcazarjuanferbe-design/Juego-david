@@ -100,8 +100,38 @@ input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px color-mix(i
 .pk:disabled{box-shadow:none;background:#e4e6ea}
 .b:disabled{box-shadow:none;transform:none;filter:grayscale(.4)}
 @media (prefers-reduced-motion:reduce){.c,.pk,.b,.q button,.lgh,summary{transition:none}.c:hover,.pk:hover,.b:hover,.q button:hover{transform:none!important}}
+.home{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}.hc{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:6px;padding:24px;border-radius:16px;background:var(--card);border:1px solid var(--bd);box-shadow:0 2px 4px rgba(0,0,0,.08),0 10px 24px rgba(0,0,0,.1);transition:transform .2s,box-shadow .2s,border-color .2s}.hc span{font-size:38px}.hc b{font-size:20px}.hc small{opacity:.7;font-size:13px;line-height:1.4}.hc:hover{transform:translateY(-4px);border-color:var(--ac);box-shadow:0 4px 8px rgba(0,0,0,.12),0 18px 34px rgba(0,0,0,.18)}.hc:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.cfg{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.cfg label{display:flex;flex-direction:column;gap:4px;font-size:13px}.cfg input,#key,#pname{padding:8px 10px;border:1px solid var(--bd);border-radius:8px;font-size:15px;background:var(--card);color:inherit}
+.err{color:var(--bad);font-size:13px;min-height:1em;margin:6px 0 0}.note{padding:10px 14px;border-radius:10px;background:color-mix(in srgb,#d97706 16%,transparent);border-left:4px solid #d97706;margin:10px 0}
+.pl{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:7px 10px;margin:4px 0;border-radius:9px;background:color-mix(in srgb,var(--ac) 8%,transparent);font-size:13px}
+.tm{font-variant-numeric:tabular-nums;background:rgba(0,0,0,.28);padding:2px 9px;border-radius:99px}.tm.low{background:#fff;color:#b91c1c;animation:p .6s infinite alternate}
+@media (max-width:600px){.home{grid-template-columns:1fr}}
 </style></head><body><div class="wrap">
 <h1>🧩 La Regla Secreta</h1>
+<div id="home" class="v"><div class="sub">Elige cómo quieres entrar.</div><div id="hmsg" class="note" hidden></div>
+<div class="home"><button class="hc" onclick="App.gate()"><span>🛡️</span><b>Administrador</b><small>Configura vidas y tiempo, consulta las reglas y empieza la partida.</small></button>
+<button class="hc" onclick="App.joinView()"><span>🎮</span><b>Jugar</b><small>Entra a la sala y espera a que el administrador inicie.</small></button></div></div>
+<div id="gate" class="v" hidden><div class="pan"><h2>Acceso de administrador</h2><p class="row"><input id="key" type="password" placeholder="Clave" autocomplete="off" onkeydown="if(event.key==='Enter')App.login()"><button class="b" onclick="App.login()">Entrar</button><button class="b g" onclick="App.home()">← Volver</button></p><p id="gerr" class="err"></p></div></div>
+<div id="join" class="v" hidden><div class="pan"><h2>Sala de jugadores</h2><div id="jf"><p class="row"><input id="pname" maxlength="20" placeholder="Tu nombre" autocomplete="off" onkeydown="if(event.key==='Enter')App.join()"><button class="b" onclick="App.join()">Entrar a la sala</button><button class="b g" onclick="App.home()">← Volver</button></p><p id="jerr" class="err"></p></div><div id="jw" hidden><p id="jtxt"></p><button class="b g" onclick="App.home()">Salir de la sala</button></div></div></div>
+<div id="adm" class="v" hidden><div class="pan"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Panel del administrador</h2><button class="b g" onclick="App.home()">Salir</button></div>
+<div class="cfg"><label>Vidas iniciales<input id="cl" type="number" min="1" max="9" value="3" onchange="App.cfgChange()"></label><label>Tiempo por ronda (segundos · 0 = sin límite)<input id="cs" type="number" min="0" max="3600" step="15" value="300" onchange="App.cfgChange()"></label></div>
+<div class="row" id="acts" style="margin-top:10px"></div><p id="aerr" class="err"></p></div>
+<div class="pan"><h2>Jugadores en la sala</h2><div id="plist"></div></div>
+<div class="pan"><h2>Reglas de cada ronda</h2><ol id="all"></ol></div>
+<details class="pan"><summary><b>Documentación (SOLID, UML y clave)</b></summary><p><b>Principios SOLID aplicados</b></p>
+ <ul>
+  <li><b>S</b>: cada clase hace una sola cosa (<code>Game</code> maneja el estado del juego; <code>HUD</code> pinta; <code>Logger</code> registra; <code>RoundSplash</code> anuncia la ronda; <code>Stats</code> cuenta; cada <code>Rule</code> evalúa una condición).</li>
+  <li><b>O</b>: nuevas reglas, rondas o estados se añaden con clases nuevas, sin tocar <code>Game</code>.</li>
+  <li><b>L</b>: cualquier <code>Rule</code> (simple, <code>Not</code>, <code>Lag</code> o <code>AllOf</code>) es intercambiable donde se espera una <code>Rule</code>.</li>
+  <li><b>I</b>: interfaces pequeñas (<code>Rule.ok</code>, <code>Observer.init</code>, <code>LevelFactory.create</code>).</li>
+  <li><b>D</b>: <code>Game</code> recibe por constructor las fábricas y el bus de eventos; depende de abstracciones, no de reglas concretas. Bajo acoplamiento: la UI solo se entera de cambios por eventos.</li>
+ </ul>
+ <p><b>Patrones:</b> Factory Method (<code>LevelFactory</code>) · Decorator (<code>Not</code>, <code>Lag</code>) y Composite (<code>AllOf</code>) · Strategy (<code>Rule</code>) · Observer (<code>EventBus</code>) · State (<code>GameState</code>).</p>
+ <h2>Diagrama UML</h2><div class="scroll" id="uml">Cargando…</div>
+ <p style="opacity:.7">Si no carga (sin internet), copia el texto de abajo en <b>mermaid.live</b>.</p><pre id="umlsrc" class="scroll"></pre>
+ <p><b>Cambiar clave:</b> <input id="nk" placeholder="nueva clave"> → pega este número en <code>AUTH_HASH</code>: <code id="nh"></code></p>
+</details></div>
+<div id="game" class="v" hidden>
 <div class="sub">Una regla oculta decide qué cartas se aceptan según lo que ya hay en la mesa. Juega cartas, observa (¡también las rechazadas y lo que había antes!) y deduce. Cuando creas saberla, demuéstralo en el examen. Son 4 rondas y la última es brutal.</div>
 <div class="ban" id="ban"></div>
 <div class="pan"><h2>Mesa · cartas aceptadas</h2><div class="felt"><div class="row" id="line"></div></div>
@@ -114,25 +144,9 @@ input:focus{outline:none;border-color:var(--ac);box-shadow:0 0 0 3px color-mix(i
  <div class="lgw"><div><div id="log" role="log" aria-live="polite"></div></div></div>
 </aside>
 <div class="splash" id="splash" aria-hidden="true"></div>
+</div>
 
-<details class="pan"><summary><b>Modo autor</b></summary>
-<p>Clave: <input id="key" type="password" placeholder="clave" autocomplete="off"></p>
-<div id="auth" style="display:none">
- <p><b>Regla de la ronda actual:</b> <span id="ans"></span></p>
- <p><b>Todas las rondas:</b></p><ol id="all"></ol>
- <p><b>Principios SOLID aplicados</b></p>
- <ul>
-  <li><b>S</b>: cada clase hace una sola cosa (<code>Game</code> maneja el estado del juego; <code>HUD</code> pinta; <code>Logger</code> registra; <code>RoundSplash</code> anuncia la ronda; <code>Stats</code> cuenta; cada <code>Rule</code> evalúa una condición).</li>
-  <li><b>O</b>: nuevas reglas, rondas o estados se añaden con clases nuevas, sin tocar <code>Game</code>.</li>
-  <li><b>L</b>: cualquier <code>Rule</code> (simple, <code>Not</code>, <code>Lag</code> o <code>AllOf</code>) es intercambiable donde se espera una <code>Rule</code>.</li>
-  <li><b>I</b>: interfaces pequeñas (<code>Rule.ok</code>, <code>Observer.init</code>, <code>LevelFactory.create</code>).</li>
-  <li><b>D</b>: <code>Game</code> recibe por constructor las fábricas y el bus de eventos; depende de abstracciones, no de reglas concretas. Bajo acoplamiento: la UI solo se entera de cambios por eventos.</li>
- </ul>
- <p><b>Patrones:</b> Factory Method (<code>LevelFactory</code>) · Decorator (<code>Not</code>, <code>Lag</code>) y Composite (<code>AllOf</code>) · Strategy (<code>Rule</code>) · Observer (<code>EventBus</code>) · State (<code>GameState</code>).</p>
- <h2>Diagrama UML</h2><div class="scroll" id="uml">Cargando…</div>
- <p style="opacity:.7">Si no carga (sin internet), copia el texto de abajo en <b>mermaid.live</b>.</p><pre id="umlsrc" class="scroll"></pre>
- <p><b>Cambiar clave:</b> <input id="nk" placeholder="nueva clave"> → pega este número en <code>AUTH_HASH</code>: <code id="nh"></code></p>
-</div></details>
+
 </div>
 <script>
 // ===== Seguridad básica del autor (la clave no está en texto plano) =====
@@ -215,14 +229,14 @@ class EndState extends GameState{constructor(w){super();this.win=w;this.name=w?"
 
 // ===== Contexto: depende de abstracciones inyectadas (DIP) =====
 class Game{
- constructor(factories,bus){this.F=factories;this.bus=bus;this.reset()}
+ constructor(factories,bus){this.F=factories;this.bus=bus;this.cfg={lives:3,seconds:0};bus.on("timeout",()=>{if(!(this.state instanceof EndState))this.fail("Se acabó el tiempo.")})}
  get rounds(){return this.F.length}
- reset(){this.lvl=0;this.lives=3;this.bus.emit("newgame");this.start()}
+ reset(){this.lvl=0;this.lives=this.cfg.lives;this.bus.emit("newgame");this.start()}
  start(retry=false){const L=this.F[this.lvl].create();this.rule=L.rule;this.plays=L.plays;this.line=[this.rand()];this.rej=[];this.exam=null;
-  this.setState(new ExploreState());this.bus.emit("round",{n:this.lvl+1,total:this.rounds,final:this.lvl===this.rounds-1,retry,lives:this.lives})}
+  this.setState(new ExploreState());this.bus.emit("round",{n:this.lvl+1,total:this.rounds,final:this.lvl===this.rounds-1,retry,lives:this.lives,seconds:this.cfg.seconds})}
  nextLevel(){if(this.lvl>=this.rounds-1)this.setState(new EndState(true));else{this.lvl++;this.start()}}
  rand(){return new Card(1+Math.floor(Math.random()*MAXV),Math.floor(Math.random()*4))}
- setState(s){this.state=s;this.bus.emit("update")}
+ setState(s){this.state=s;this.bus.emit("update");if(s instanceof EndState)this.bus.emit("end")}
  fail(m){this.lives--;this.bus.emit("log",{k:"life",m:"💔 "+m+" Pierdes una vida."});if(this.lives<=0)this.setState(new EndState(false));else this.start(true)}
  play(c){this.state.play(this,c)}declare(){this.state.declare(this)}answer(i,v){this.state.answer(this,i,v)}submit(){this.state.submit(this)}cancel(){this.state.cancel(this)}
  makeExam(){const a=[],r=[];
@@ -234,15 +248,15 @@ const G=new Game([new Level1Factory(),new Level2Factory(),new Level3Factory(),ne
 
 function render(){const g=G,st=g.state,ex=st instanceof ExamState,end=st instanceof EndState,fin=g.lvl===g.rounds-1,exp=st instanceof ExploreState;
  $("ban").className="ban"+(fin&&!end?" fin":"");
- $("ban").innerHTML=end?`<span>${st.name}</span>`:`<span>RONDA ${g.lvl+1} / ${g.rounds}${fin?" · ⚠ ¡RONDA FINAL!":" · la ronda "+g.rounds+" será la FINAL"}</span><span>${"❤️".repeat(g.lives)} · Jugadas: ${g.plays}</span>`;
+ $("ban").innerHTML=end?`<span>${st.name}</span>`:`<span>RONDA ${g.lvl+1} / ${g.rounds}${fin?" · ⚠ ¡RONDA FINAL!":" · la ronda "+g.rounds+" será la FINAL"}</span><span>${"❤️".repeat(g.lives)} · Jugadas: ${g.plays}${timer.left()!=null?` · <b id="tm" class="tm${timer.left()<=10?" low":""}">${timer.text()}</b>`:""}</span>`;
  $("line").innerHTML=g.line.map(c=>chip(c)).join("");
  $("rej").innerHTML=g.rej.length?g.rej.map(x=>chip(x.c,1,x.ctx.length?"tras "+x.ctx.join(" "):"")).join(""):"<span style=opacity:.6>Aún ninguna</span>";
  let h="";for(let s=0;s<4;s++){h+='<div class="grid" style="margin-bottom:3px">';for(let v=1;v<=MAXV;v++)h+=`<button class="pk ${s===1||s===2?"r":""}" ${exp?"":"disabled"} onclick="G.play(new Card(${v},${s}))">${VL[v-1]}${SU[s]}</button>`;h+="</div>"}
  $("pick").innerHTML=h;$("play").style.display=end||ex?"none":"";$("decl").onclick=()=>G.declare();
  $("exam").style.display=ex?"":"none";
  if(ex){const l=g.line.slice(-3).map(c=>chip(c)).join("");$("exam").innerHTML=`<h2>Examen: ¿se aceptaría cada carta si fuera la siguiente?</h2><div class="row" style="margin-bottom:8px">${l}</div>`+g.exam.map((q,i)=>`<div class="q">${chip(q.c)}<button class="${q.ans===true?"s":""}" onclick="G.answer(${i},true)">✔ Aceptada</button><button class="${q.ans===false?"s":""}" onclick="G.answer(${i},false)">✘ Rechazada</button></div>`).join("")+`<div class="row" style="margin-top:8px"><button class="b" ${g.exam.some(q=>q.ans===null)?"disabled":""} onclick="G.submit()">Entregar examen</button><button class="b g" onclick="G.cancel()">Volver a explorar</button></div><p style="opacity:.7;font-size:12px">Necesitas acertar las ${g.exam.length}. Un fallo cuesta una vida y reinicia la ronda con una mesa nueva.</p>`}
- if(end){$("exam").style.display="";$("exam").innerHTML=`<div class="end">${st.win?"🏆 ¡Descubriste todas las reglas! Eres de los pocos que lo logran.":"💀 Te quedaste sin vidas."}<small>Cartas jugadas: ${stats.n} · aceptadas: ${stats.ok}</small><button class="b" style="margin-top:10px" onclick="G.reset()">Jugar de nuevo</button></div>`}
- chk()}
+ if(end){$("exam").style.display="";$("exam").innerHTML=`<div class="end">${st.win?"🏆 ¡Descubriste todas las reglas! Eres de los pocos que lo logran.":"💀 Te quedaste sin vidas."}<small>Cartas jugadas: ${stats.n} · aceptadas: ${stats.ok}</small><button class="b" style="margin-top:10px" onclick="App.home()">Volver al inicio</button></div>`}
+}
 
 // ===== Modo autor =====
 const UML=`classDiagram
@@ -344,13 +358,69 @@ async function showUml(){if(umlDone)return;umlDone=true;$("umlsrc").textContent=
   m.initialize({startOnLoad:false,theme:dark?"dark":"default"});
   const {svg}=await m.render("umlsvg",UML);$("uml").innerHTML=svg}
  catch(e){$("uml").textContent="No se pudo cargar el renderizador. Usa el texto de abajo."}}
-function chk(){const okKey=cyrb53($("key").value)===AUTH_HASH;$("auth").style.display=okKey?"":"none";
- if(okKey){$("ans").textContent=G.rule.desc;$("all").innerHTML=G.F.map((f,i)=>`<li>Ronda ${i+1}: ${f.create().rule.desc}</li>`).join("");showUml()}
- else $("ans").textContent=""}
-$("key").oninput=chk;
 $("nk").oninput=()=>{$("nh").textContent=$("nk").value?cyrb53($("nk").value):""};
 
-[new Logger(),new RoundSplash(),stats,new HUD(render)].forEach(o=>o.init(bus));
-G.reset();
+// ===== TEMPORIZADOR (Observer): vence -> evento "timeout" =====
+const fmt=n=>Math.floor(n/60)+":"+String(n%60).padStart(2,"0");
+class GameTimer extends Observer{
+ init(b){this.b=b;b.on("round",o=>this.go(o.seconds));b.on("end",()=>this.stop());b.on("newgame",()=>this.stop())}
+ go(sec){this.stop();if(!sec)return;this.t0=Date.now()+sec*1000;this.iv=setInterval(()=>this.tick(),250);this.b.emit("update")}
+ stop(){clearInterval(this.iv);this.t0=0}
+ left(){return this.t0?Math.max(0,Math.ceil((this.t0-Date.now())/1000)):null}
+ text(){return"⏱ "+fmt(this.left())}
+ tick(){const l=this.left(),e=$("tm");if(e){e.textContent=this.text();e.className="tm"+(l<=10?" low":"")}if(l<=0){this.stop();this.b.emit("timeout")}}}
+const timer=new GameTimer();
+
+// ===== SALA: transporte intercambiable (hoy: pestañas del mismo navegador) =====
+const LS={get(k){try{return JSON.parse(localStorage.getItem(k))}catch{return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}},del(k){try{localStorage.removeItem(k)}catch{}}};
+class LocalTransport{
+ constructor(){this.h=[];addEventListener("storage",e=>{if(e.key&&e.key.startsWith("lrs_"))this.fire()});setInterval(()=>this.fire(),2000)}
+ fire(){this.h.forEach(f=>f())}onChange(f){this.h.push(f)}
+ session(){return LS.get("lrs_session")}setSession(v){LS.set("lrs_session",v);this.fire()}
+ setPlayer(id,d){LS.set("lrs_p_"+id,d)}delPlayer(id){LS.del("lrs_p_"+id)}
+ players(){const o={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith("lrs_p_"))o[k.slice(6)]=LS.get(k)}return o}
+ clear(){LS.del("lrs_session");Object.keys(this.players()).forEach(id=>this.delPlayer(id));this.fire()}}
+const TR=new LocalTransport(),ALIVE=8000,esc=t=>String(t).replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");
+const App={mode:null,pid:null,name:"",epoch:null,hb:0,playing:false,
+ msg(t){const m=$("hmsg");m.textContent=t||"";m.hidden=!t},
+ home(m){this.leave();this.mode=null;show("home");this.msg(typeof m==="string"?m:"")},
+ leave(){clearInterval(this.hb);if(this.pid)TR.delPlayer(this.pid);this.pid=null;this.playing=false;timer.stop()},
+ gate(){this.mode=null;show("gate");$("key").value="";$("gerr").textContent="";$("key").focus()},
+ login(){if(cyrb53($("key").value)!==AUTH_HASH){$("gerr").textContent="Clave incorrecta.";return}
+  this.mode="admin";show("adm");$("all").innerHTML=G.F.map((f,i)=>`<li>Ronda ${i+1}: ${f.create().rule.desc}</li>`).join("");showUml();this.sync()},
+ cfg(){const c=(id,lo,hi,d)=>{const v=parseInt($(id).value,10);return Math.min(hi,Math.max(lo,isNaN(v)?d:v))};return{lives:c("cl",1,9,3),seconds:c("cs",0,3600,300)}},
+ cfgChange(){const c=this.cfg();$("cl").value=c.lives;$("cs").value=c.seconds;const s=TR.session();if(s&&s.status==="lobby"){s.cfg=c;TR.setSession(s)}},
+ open(){TR.clear();TR.setSession({epoch:Date.now(),status:"lobby",cfg:this.cfg(),roster:[]})},
+ start(){const s=TR.session(),now=Date.now(),ps=TR.players();
+  s.roster=Object.keys(ps).filter(id=>ps[id].epoch===s.epoch&&now-ps[id].t<ALIVE);
+  if(!s.roster.length){$("aerr").textContent="No hay jugadores conectados en la sala.";return}
+  $("aerr").textContent="";s.cfg=this.cfg();s.status="playing";TR.setSession(s)},
+ close(){TR.clear()},
+ joinView(){this.mode="player";show("join");$("jf").hidden=false;$("jw").hidden=true;$("jerr").textContent="";$("pname").focus()},
+ join(){const s=TR.session(),n=$("pname").value.trim();
+  if(!n){$("jerr").textContent="Escribe tu nombre.";return}
+  if(!s){$("jerr").textContent="Aún no hay una sala abierta. Pide al administrador que la abra.";return}
+  if(s.status!=="lobby"){$("jerr").textContent="La partida ya empezó. Solo juegan quienes estaban dentro; espera a la siguiente.";return}
+  this.pid=Math.random().toString(36).slice(2);this.name=n.slice(0,20);this.epoch=s.epoch;this.beat();
+  this.hb=setInterval(()=>this.beat(),2000);$("jf").hidden=true;$("jw").hidden=false;this.sync()},
+ beat(){if(!this.pid)return;const g=G.state,end=g instanceof EndState;
+  TR.setPlayer(this.pid,{name:this.name,epoch:this.epoch,t:Date.now(),lvl:G.lvl,lives:G.lives,st:!this.playing?"En sala":end?(g.win?"🏆 Terminó":"💀 Eliminado"):"Jugando"})},
+ startGame(c){this.playing=true;show("game");G.cfg=c;G.reset();this.beat()},
+ sync(){const s=TR.session();
+  if(this.mode==="admin")return this.adminView(s);
+  if(this.mode!=="player"||!this.pid)return;
+  if(!s||s.epoch!==this.epoch)return this.home("El administrador cerró la sala.");
+  if(s.status==="playing"&&!this.playing){if(s.roster.includes(this.pid))this.startGame(s.cfg);else this.home("La partida empezó sin ti. Solo juegan quienes estaban dentro de la sala.")}
+  else if(!this.playing){const n=Object.values(TR.players()).filter(p=>p.epoch===s.epoch).length;$("jtxt").innerHTML=`✅ Estás dentro, <b>${esc(this.name)}</b>. Jugadores en la sala: <b>${n}</b>.<br>Esperando a que el administrador empiece… ⏳<br><small>Vidas: ${s.cfg.lives} · Tiempo por ronda: ${s.cfg.seconds?fmt(s.cfg.seconds):"sin límite"}. No recargues la página: saldrías de la sala.</small>`}},
+ adminView(s){const ps=TR.players(),now=Date.now(),st=s?s.status:"none";
+  for(const id of["cl","cs"])$(id).disabled=st==="playing";
+  if(s&&document.activeElement!==$("cl")&&document.activeElement!==$("cs")){$("cl").value=s.cfg.lives;$("cs").value=s.cfg.seconds}
+  const list=Object.values(ps).filter(p=>s&&p.epoch===s.epoch),on=list.filter(p=>now-p.t<ALIVE).length;
+  $("acts").innerHTML=st==="none"?'<button class="b" onclick="App.open()">🚪 Abrir sala</button>':st==="lobby"?`<button class="b" onclick="App.start()">▶ Empezar partida (${on} conectado${on===1?"":"s"})</button><button class="b g" onclick="App.close()">Cerrar sala</button>`:'<button class="b g" onclick="App.close()">⏹ Terminar partida y cerrar sala</button><span style="opacity:.7">Partida en curso: la configuración está bloqueada.</span>';
+  $("plist").innerHTML=!s?'<span style="opacity:.6">Abre la sala para que los jugadores puedan entrar.</span>':list.length?list.map(p=>`<div class="pl"><b>${esc(p.name)}</b><span>${now-p.t<ALIVE?"🟢":"⚪ desconectado"} · ${p.st} · Ronda ${p.lvl+1} · ${"❤️".repeat(Math.max(0,p.lives))||"—"}${s.status==="playing"&&!s.roster.includes(Object.keys(ps).find(k=>ps[k]===p))?" · fuera":""}</span></div>`).join(""):'<span style="opacity:.6">Nadie ha entrado todavía.</span>'},
+ init(){TR.onChange(()=>this.sync());bus.on("round",()=>this.beat());bus.on("end",()=>this.beat());addEventListener("pagehide",()=>{if(this.pid)TR.delPlayer(this.pid)});show("home")}};
+const show=id=>document.querySelectorAll(".v").forEach(v=>v.hidden=v.id!==id);
+[new Logger(),new RoundSplash(),stats,timer,new HUD(render)].forEach(o=>o.init(bus));
+App.init();
 </script>
 </body></html>
